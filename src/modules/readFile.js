@@ -4,7 +4,7 @@ const url = require('node:url');
 
 
 
-const readFile = (response, request) => {
+const readFile = (request, response, next) => {
            const fileName = url.parse(request.url).pathname.split('/')[2]
            const readStream = fs.createReadStream(path.join(__dirname, '..', 'files', fileName));
            let fullContent = ''
@@ -14,9 +14,8 @@ const readFile = (response, request) => {
            })
 
            readStream.on('end', () => {
-               response.status = 200;
-               response.write(JSON.stringify(fullContent))
-               response.end();
+               response.status(200).json(fullContent);
+               next();
            } )
 
 }

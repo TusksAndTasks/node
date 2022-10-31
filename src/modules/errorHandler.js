@@ -1,12 +1,9 @@
-const errorHandlerWrapper = (callback, response,  request ) => {
-    return () => {
-        try {
-            callback(response, request)
-        } catch (e) {
-            response.status = 500;
-            response.end(JSON.stringify(`Hmmm.Something is wrong - ${e.message} `))
-        }
+const errorHandler = ( error, req, res, next ) => {
+    console.log(231231321);
+    if (res.headersSent) {
+        return next(error)
     }
+    res.status(500).json(`Hmmm.Something is wrong - ${error.message} `);
 }
 
-module.exports = {errorHandlerWrapper}
+module.exports = {errorHandler}

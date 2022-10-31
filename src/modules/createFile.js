@@ -1,7 +1,7 @@
 const fs = require('node:fs');
-const path = require('node:path')
+const path = require('node:path');
 
-const createFile = (response, request) => {
+const createFile = (request, response, next) => {
 
     let fullRequestData = '';
 
@@ -11,13 +11,16 @@ const createFile = (response, request) => {
 
     request.on('end', () => {
        const parsedData = JSON.parse(fullRequestData);
+       if(!parsedData.extension){
+           throw new Error("No extension")
+       }
        const filePath = path.join(__dirname, '..', 'files', `content.${parsedData.extension}`);
        const writeStream = fs.createWriteStream(filePath);
        writeStream.write(JSON.stringify(parsedData.data));
+       response.status(200).json(` Yor data written in file content`);
+       next();
     } )
 
-    response.status = 200;
-    response.end(JSON.stringify(` Yor data written in file content`));
 }
 
 module.exports = {createFile};

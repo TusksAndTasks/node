@@ -13,7 +13,7 @@ async function updateData (newData, oldData) {
 }
 
 
-const updateFile = (response, request) => {
+const updateFile = (request, response, next) => {
     let requestData = ''
 
     request.on('data', (data) => {
@@ -33,10 +33,8 @@ const updateFile = (response, request) => {
         readStream.on('end', async () => {
             const updatedFile = await updateData(parsedRequest.data, fullFileData);
            fs.createWriteStream(filePath).write(JSON.stringify(updatedFile) )
-
-           response.status = 200;
-           response.end(JSON.stringify(` Yor data has been successfully updated`));
-
+           response.status(200).json(` Yor data has been successfully updated`);
+           next();
         })
     })
 
