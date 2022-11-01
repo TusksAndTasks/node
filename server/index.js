@@ -13,18 +13,19 @@ const io = new Server(httpServer, {
     }
 });
 
-const readList = (callback) => {
-    fs.readFile(path.join(__dirname, 'databases', 'userList.json'), (err, userList) => {
+const readFile = (path, callback) => {
+    fs.readFile(path, (err, userList) => {
         if(err){
             console.error(err);
             return;
         }
-        const parsedUserList = JSON.parse(userList.toString());
-        callback(parsedUserList)
+        const parsedFile = JSON.parse(userList.toString());
+        callback(parsedFile)
     })
 };
 
 let isUserLogged = false;
+const pathToUserList = path.join(__dirname, 'databases', 'userList.json');
 
 io.on('connection', (socket) => {
 
@@ -44,7 +45,7 @@ io.on('connection', (socket) => {
             });
         }
 
-           readList(setUserOnline);
+           readFile(pathToUserList, setUserOnline);
            isUserLogged = true;
     })
 
@@ -53,7 +54,33 @@ io.on('connection', (socket) => {
                 io.sockets.emit('sendUserList', parsedUserList);
             }
 
-            readList(sendUserList);
+            readFile(pathToUserList, sendUserList);
+    })
+
+    socket.on('joinRoom', (roomName) => {
+        socket.join(roomName);
+        const pathToChatHistory = path.join(__dirname, 'databases', 'chatHistories', `${roomName}.json`)
+
+        if (!fs.existsSync(pathToChatHistory)){
+            fs.writeFile(pathToChatHistory, JSON.stringify([]), () => {console.log('history created')});
+        }
+        const sendChatHistory = (parsedHistory) => {
+            socket.emit('sendChatHistory', parsedHistory);
+        }
+        readFile(pathToChatHistory, sendChatHistory);
+
+        console.log(roomName);
+    })
+
+    socket.on('sendMessage', (message) => {
+        const pathToHistory = path.join(__dirname, 'databases', 'chatHistories', `${message.room}.json`)
+
+        const updateHistory = (parsedHistory) => {
+          const history = [...parsedHistory, message]
+          fs.writeFile(pathToHistory, history, () => {console.log('History updated')} );
+        }
+
+        readFile(pathToUserList, updateHistory);
     })
 
     socket.on('disconnect', () => {
@@ -65,7 +92,7 @@ io.on('connection', (socket) => {
             });
         }
         if(isUserLogged){
-            readList(setUserOffline);
+            readFile(pathToUserList, setUserOffline);
             io.sockets.emit('logoff');
             isUserLogged = false;
         }
