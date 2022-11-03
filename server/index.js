@@ -2,6 +2,7 @@ const express = require('express');
 const { Server } = require("socket.io");
 const { createServer } = require("http");
 const fs = require('fs');
+const fsPromises = require('fs/promises');
 const path = require('path');
 
 const app = express();
@@ -14,12 +15,12 @@ const io = new Server(httpServer, {
 });
 
 const readFile = (path, callback) => {
-    fs.readFile(path, (err, userList) => {
+    fs.readFile(path, (err, data) => {
         if(err){
             console.error(err);
             return;
         }
-        const parsedFile = JSON.parse(userList.toString());
+        const parsedFile = JSON.parse(data.toString());
         callback(parsedFile)
     })
 };
@@ -57,30 +58,33 @@ io.on('connection', (socket) => {
             readFile(pathToUserList, sendUserList);
     })
 
-    socket.on('joinRoom', (roomName) => {
+    socket.on('joinRoom', async (roomName) => {
         socket.join(roomName);
         const pathToChatHistory = path.join(__dirname, 'databases', 'chatHistories', `${roomName}.json`)
 
         if (!fs.existsSync(pathToChatHistory)){
-            fs.writeFile(pathToChatHistory, JSON.stringify([]), () => {console.log('history created')});
+            await fsPromises.writeFile(pathToChatHistory, JSON.stringify([]), (err) => {console.error(err)});
         }
         const sendChatHistory = (parsedHistory) => {
             socket.emit('sendChatHistory', parsedHistory);
         }
-        readFile(pathToChatHistory, sendChatHistory);
+       await readFile(pathToChatHistory, sendChatHistory);
+    })
 
-        console.log(roomName);
+    socket.on('changeRoom', (roomName) => {
+        socket.leave(roomName)
     })
 
     socket.on('sendMessage', (message) => {
         const pathToHistory = path.join(__dirname, 'databases', 'chatHistories', `${message.room}.json`)
 
-        const updateHistory = (parsedHistory) => {
+        const updateHistory = async (parsedHistory) => {
           const history = [...parsedHistory, message]
-          fs.writeFile(pathToHistory, history, () => {console.log('History updated')} );
+          await fs.writeFile(pathToHistory, JSON.stringify(history), (err) => {console.error(err)} );
+          socket.to(message.room).emit('receiveMessage', message)
         }
 
-        readFile(pathToUserList, updateHistory);
+        readFile(pathToHistory, updateHistory);
     })
 
     socket.on('disconnect', () => {

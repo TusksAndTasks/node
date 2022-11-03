@@ -15,7 +15,6 @@ function App() {
 
   return (
     <div className="App">
-        <h1>{login}</h1>
         <Routes>
             <Route path='/' element={<AuthPage setLogin={memoizedSetLogin} login={login} socket={socket}  />}  />
             <Route path='/users' element={login ? <ChatPage socket={socket} username={login} /> : <Navigate replace to="/" />} />
