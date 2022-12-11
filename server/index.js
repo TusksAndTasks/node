@@ -4,6 +4,7 @@ const { createServer } = require("http");
 const fs = require('fs');
 const fsPromises = require('fs/promises');
 const path = require('path');
+const {MongoClient} = require("mongodb");
 
 const app = express();
 const httpServer = createServer(app);
@@ -14,97 +15,71 @@ const io = new Server(httpServer, {
     }
 });
 
-const readFile = (path, callback) => {
-    fs.readFile(path, (err, data) => {
-        if(err){
-            console.error(err);
-            return;
-        }
-        const parsedFile = JSON.parse(data.toString());
-        callback(parsedFile)
-    })
-};
+const url = 'mongodb://localhost:27017';
+const client = new MongoClient(url);
 
 let isUserLogged = false;
-const pathToUserList = path.join(__dirname, 'databases', 'userList.json');
 
-io.on('connection', (socket) => {
+io.on('connection', async (socket) => {
 
-    socket.on('login', (username) => {
-        const setUserOnline = (parsedUserList) => {
-            const indexOfUser = parsedUserList.findIndex((element) => element.name === username);
+    await client.connect();
+    const chatDB = client.db('chat');
 
-            if(indexOfUser === -1){
-                parsedUserList.push({name: username, online: true, latestId: socket.id})
-            } else {
-                parsedUserList[indexOfUser].online = true
-                parsedUserList[indexOfUser].latestId = socket.id
-            }
+    socket.on('login', async (username) => {
 
-            fs.writeFile(path.join(__dirname, 'databases', 'userList.json'), JSON.stringify(parsedUserList), (err) => {
-                console.error(err);
-            });
+        const users = chatDB.collection('users');
+        const user =  await users.findOne({name: username});
+
+        if(user){
+           await users.updateOne(user, { $set: { online: true, latestId: socket.id } })
+        } else {
+           await users.insertOne({ name: username, online: true, latestId: socket.id })
         }
 
-           readFile(pathToUserList, setUserOnline);
-           isUserLogged = true;
+        isUserLogged = true;
+
     })
 
-    socket.on('getUserList', () => {
-            const sendUserList = (parsedUserList) => {
-                io.sockets.emit('sendUserList', parsedUserList);
-            }
+    socket.on('getUserList', async () => {
+        const users = chatDB.collection('users');
+        const parsedUserList =  await users.find({}).toArray();
 
-            readFile(pathToUserList, sendUserList);
+        io.sockets.emit('sendUserList', parsedUserList);
+
     })
 
     socket.on('joinRoom', async (roomName) => {
-        socket.join(roomName);
-        const pathToChatHistory = path.join(__dirname, 'databases', 'chatHistories', `${roomName}.json`)
 
-        if (!fs.existsSync(pathToChatHistory)){
-            await fsPromises.writeFile(pathToChatHistory, JSON.stringify([]), (err) => {console.error(err)});
-        }
-        const sendChatHistory = (parsedHistory) => {
-            socket.emit('sendChatHistory', parsedHistory);
-        }
-       await readFile(pathToChatHistory, sendChatHistory);
+       socket.join(roomName);
+       const chatHistory = chatDB.collection(roomName);
+       const parsedHistory = await chatHistory.find({}).toArray();
+
+       socket.emit('sendChatHistory', parsedHistory);
+
     })
 
     socket.on('changeRoom', (roomName) => {
         socket.leave(roomName)
     })
 
-    socket.on('sendMessage', (message) => {
-        const pathToHistory = path.join(__dirname, 'databases', 'chatHistories', `${message.room}.json`)
+    socket.on('sendMessage', async (message) => {
+        const chatHistory = chatDB.collection(message.room);
+        await chatHistory.insertOne(message);
+        socket.to(message.room).emit('receiveMessage', message)
 
-        const updateHistory = async (parsedHistory) => {
-          const history = [...parsedHistory, message]
-          await fs.writeFile(pathToHistory, JSON.stringify(history), (err) => {console.error(err)} );
-          socket.to(message.room).emit('receiveMessage', message)
-        }
-
-        readFile(pathToHistory, updateHistory);
     })
 
-    socket.on('disconnect', () => {
-        const setUserOffline = (parsedUserList) => {
-            const indexOfUser = parsedUserList.findIndex((element) => element.latestId === socket.id);
-            parsedUserList[indexOfUser].online = false;
-            fs.writeFile(path.join(__dirname, 'databases', 'userList.json'), JSON.stringify(parsedUserList), (err) => {
-                console.error(err);
-            });
-        }
-        if(isUserLogged){
-            readFile(pathToUserList, setUserOffline);
+    socket.on('disconnect', async () => {
+        if (isUserLogged) {
+            const users = chatDB.collection('users');
+            const user = await users.findOne({latestId: socket.id});
+            await users.updateOne(user, {$set: {online: false}});
             io.sockets.emit('logoff');
             isUserLogged = false;
         }
 
     })
+
 })
-
-
-
 
 httpServer.listen(3001, 511, () => {console.log('Running on 3000')});
