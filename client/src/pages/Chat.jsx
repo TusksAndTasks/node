@@ -5,6 +5,7 @@ import ScrollToBottom from 'react-scroll-to-bottom';
 function Chat({socket, username, chatRoom}){
     const [chatHistory, setChatHistory] = useState([]);
     const [currentMessage, setCurrentMessage] = useState('');
+    const [responseTo, setResponseTo] = useState(null)
 
     useEffect(() => {
         socket.on('sendChatHistory', (history) => {
@@ -22,12 +23,18 @@ function Chat({socket, username, chatRoom}){
     }, [socket])
 
     const messages = chatHistory.map((message) => (
-        <ChatMessage sender={message.author === username} key={message.content + message.time}>
+        <React.Fragment key={message.id + message.content}>
+            {chatHistory.find((msg) => msg.id === message.responseToId)?.content &&
+            <ResponseToMessage sender={message.author === username}>
+                {chatHistory.find((msg) => msg.id === message.responseToId)?.content}
+            </ResponseToMessage>}
+          <ChatMessage sender={message.author === username} resp={responseTo === message.id}  onClick={() => setResponseTo(message.id)}>
             <MessageText>{message.content}</MessageText>
-            <MessageTime sender={message.author === username} key={message.content + message.time}>
+            <MessageTime sender={message.author === username}>
                 {message.time}
             </MessageTime>
-        </ChatMessage>
+          </ChatMessage>
+        </React.Fragment>
     ))
 
     const sendMessage = async () => {
@@ -38,12 +45,13 @@ function Chat({socket, username, chatRoom}){
                 time: new Date(Date.now()).getHours() +
                     ":" +
                     new Date(Date.now()).getMinutes(),
-                room: chatRoom
+                room: chatRoom,
+                responseId: responseTo
             }
 
             await socket.emit('sendMessage', message);
             setCurrentMessage('');
-            setChatHistory((history) => [...history, message])
+            setResponseTo(null);
         }
     }
 
@@ -150,11 +158,20 @@ const ChatHeader = styled.h2`
 
 const ChatMessage = styled.div`
   ${(props) => props.sender ? {'align-self': 'flex-end','background-color': '#82aec2'} : {'align-self': 'flex-start', 'background-color': '#cfeafa'}};
+  ${(props) => props.resp ? { 'border': '1px solid #000'} : {}};
   margin: 10px;
   width: 200px;
   border-radius: 10px;
   padding: 10px;
   position: relative;
+`
+
+const ResponseToMessage = styled.div`
+  ${(props) => props.sender ? {'align-self': 'flex-end','background-color': '#82aec2'} : {'align-self': 'flex-start', 'background-color': '#cfeafa'}};
+  width: 180px;
+  height: 80px;
+  border-radius: 10px;
+  padding: 10px;
 `
 
 const MessageText = styled.p`

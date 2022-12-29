@@ -1,0 +1,12 @@
+{
+  "type": "sqlite",
+  "database": "chat",
+  "synchronize": true,
+  "login": "false",
+  "entities": [
+    "entity/*.ts"
+  ],
+  "cli": {
+    "entitiesDir": "entity"
+  }
+}
