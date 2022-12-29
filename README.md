@@ -1,19 +1,12 @@
 ## Запуск
 
-### Подготовка датабазы
- cd node/server
-
- mkdir data
-
- sudo mongod --dbpath=data
-
 ### Первый терминал
 
 cd node/server
 
 npm i
 
-npm run serve
+npm run start
 
 ### Второй терминал
 
