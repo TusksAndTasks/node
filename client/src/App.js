@@ -26,7 +26,7 @@ function App() {
     <Container className="App">
       {
       files.length > 0 && <FileList>
-        {files.map((file) => <File>{file.name}</File>)}
+        {files.map((file) => <File key={file.name}>{file.name}</File>)}
       </FileList>
       }
       <FileSelector>
